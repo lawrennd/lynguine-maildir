@@ -15,6 +15,9 @@ pandas = "*"
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.poetry.plugins."lynguine.io_types"]
 imap = "lynguine_imap"
 
