@@ -66,3 +66,8 @@ imap`. This repository is that plugin, named `lynguine-imap`.
 
 Requirement created with the plugin form already registered. Status In
 Progress while the IMAP fetch lands.
+
+OAuth2 / Exchange Online is [REQ-0002](./req0002_oauth2-imap.md), not
+this requirement. Password `LOGIN` stays here.
+
+A local Maildir replica is [REQ-0003](./req0003_maildir-message-table.md).

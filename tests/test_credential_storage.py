@@ -16,7 +16,7 @@ from lynguine.security.credentials import (
     set_credential_manager,
 )
 
-import lynguine_imap
+import lynguine_maildir
 
 from .fake_imap import FakeIMAP, header_bytes
 
@@ -45,7 +45,7 @@ def _isolated_manager(manager):
 
 def _manager_with(provider):
     manager = CredentialManager(providers=[provider], enable_cache=False)
-    manager.register_validator("imap", lynguine_imap.validate_imap)
+    manager.register_validator("imap", lynguine_maildir.validate_imap)
     return manager
 
 
@@ -60,7 +60,7 @@ def _patch_ssl(monkeypatch, messages=None):
             seen["port"] = port
             seen["client"] = self
 
-    monkeypatch.setattr("lynguine_imap.reader.imaplib.IMAP4_SSL", FakeSSL)
+    monkeypatch.setattr("lynguine_maildir.reader.imaplib.IMAP4_SSL", FakeSSL)
     return seen
 
 

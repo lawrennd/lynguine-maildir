@@ -5,7 +5,7 @@ from email.header import Header
 import pandas as pd
 import pytest
 
-from lynguine_imap.reader import (
+from lynguine_maildir.reader import (
     COLUMNS,
     HEADER_FETCH,
     ImapAccessError,
@@ -135,7 +135,7 @@ def test_connect_uses_ssl_and_default_port(monkeypatch):
         def logout(self):
             return "BYE", []
 
-    monkeypatch.setattr("lynguine_imap.reader.imaplib.IMAP4_SSL", FakeSSL)
+    monkeypatch.setattr("lynguine_maildir.reader.imaplib.IMAP4_SSL", FakeSSL)
     client = connect_imap("imap.example.org", "u", "p")
     assert seen["host"] == "imap.example.org"
     assert seen["port"] == 993
@@ -157,7 +157,7 @@ def test_plaintext_uses_port_143(monkeypatch):
         def logout(self):
             return "BYE", []
 
-    monkeypatch.setattr("lynguine_imap.reader.imaplib.IMAP4", FakePlain)
+    monkeypatch.setattr("lynguine_maildir.reader.imaplib.IMAP4", FakePlain)
     connect_imap("imap.example.org", "u", "p", ssl=False)
     assert seen["port"] == 143
 

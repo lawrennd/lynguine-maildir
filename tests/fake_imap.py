@@ -26,10 +26,16 @@ class FakeIMAP:
         self.logged_out = False
         self.fetch_specs = []
         self.login_calls = []
+        self.authenticate_calls = []
 
     def login(self, user, password):
         self.login_calls.append((user, password))
         return "OK", [b"Logged in"]
+
+    def authenticate(self, mechanism, authobject):
+        payload = authobject(b"")
+        self.authenticate_calls.append((mechanism, payload))
+        return "OK", [b"AUTHENTICATE completed"]
 
     def select(self, folder, readonly=False):
         self.selected = folder

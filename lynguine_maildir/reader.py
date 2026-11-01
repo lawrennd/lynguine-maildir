@@ -14,6 +14,13 @@ from typing import Callable
 
 import pandas as pd
 
+from .credentials import normalize_imap_credential
+from .oauth import (
+    acquire_xoauth2_access_token,
+    persist_rotated_refresh_token,
+    xoauth2_sasl_payload,
+)
+
 COLUMNS = ["uid", "message_id", "subject", "from", "date"]
 HEADER_FETCH = "(BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE MESSAGE-ID)])"
 
@@ -54,10 +61,68 @@ def connect_imap(
     return client
 
 
+def connect_from_credential(
+    cred: dict,
+    *,
+    port: int | None = None,
+    ssl: bool = True,
+    timeout: float = 30.0,
+    details: dict | None = None,
+):
+    """Open an IMAP session from a LOGIN or XOAUTH2 credential dict."""
+    if cred.get("auth") == "xoauth2":
+        return connect_imap_xoauth2(
+            cred, port=port, ssl=ssl, timeout=timeout, details=details
+        )
+    return connect_imap(
+        cred["host"],
+        cred["user"],
+        cred["password"],
+        port=port,
+        ssl=ssl,
+        timeout=timeout,
+    )
+
+
+def connect_imap_xoauth2(
+    cred: dict,
+    *,
+    port: int | None = None,
+    ssl: bool = True,
+    timeout: float = 30.0,
+    details: dict | None = None,
+):
+    """Open IMAP and authenticate with SASL XOAUTH2. Caller must ``logout()``."""
+    access_token, new_refresh = acquire_xoauth2_access_token(cred)
+    if new_refresh:
+        persist_rotated_refresh_token(details, cred, new_refresh)
+    if port is None:
+        port = 993 if ssl else 143
+    factory = imaplib.IMAP4_SSL if ssl else imaplib.IMAP4
+    client = factory(cred["host"], port, timeout=timeout)
+    payload = xoauth2_sasl_payload(cred["user"], access_token)
+    try:
+        status, _ = client.authenticate("XOAUTH2", lambda _challenge: payload)
+    except imaplib.IMAP4.error as exc:
+        _close_quietly(client)
+        raise ImapAccessError(
+            f"IMAP XOAUTH2 failed for user {cred['user']!r} on {cred['host']!r}"
+        ) from exc
+    except Exception:
+        _close_quietly(client)
+        raise
+    if status != "OK":
+        _close_quietly(client)
+        raise ImapAccessError(
+            f"IMAP XOAUTH2 failed for user {cred['user']!r} on {cred['host']!r}"
+        )
+    return client
+
+
 def read_imap(
     details: dict,
     *,
-    connect: Callable[..., object] = connect_imap,
+    connect: Callable[..., object] | None = None,
 ) -> pd.DataFrame:
     """Read mailbox subjects.
 
@@ -73,13 +138,18 @@ def read_imap(
     limit = _limit(details)
     ssl = _ssl(details)
     port = _port(details, ssl=ssl)
-    client = connect(
-        cred["host"],
-        cred["user"],
-        cred["password"],
-        port=port,
-        ssl=ssl,
-    )
+    if connect is None:
+        client = connect_from_credential(
+            cred, port=port, ssl=ssl, details=details
+        )
+    else:
+        client = connect(
+            cred["host"],
+            cred["user"],
+            cred.get("password", ""),
+            port=port,
+            ssl=ssl,
+        )
     try:
         rows = fetch_message_rows(client, folder, limit)
     finally:
@@ -114,16 +184,7 @@ def _credential(details: dict) -> dict[str, str]:
     cred = details.get("credential_value")
     if not isinstance(cred, dict):
         raise ValueError("IMAP read expected credential_value mapping from lynguine")
-    missing = [
-        key
-        for key in ("host", "user", "password")
-        if not (isinstance(cred.get(key), str) and cred[key].strip())
-    ]
-    if missing:
-        raise ValueError(
-            "IMAP credential_value missing " + ", ".join(missing)
-        )
-    return {key: cred[key].strip() for key in ("host", "user", "password")}
+    return normalize_imap_credential(cred)
 
 
 def _folder(details: dict) -> str:
