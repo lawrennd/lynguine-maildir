@@ -1,7 +1,8 @@
 """Read Maildir message metadata into a DataFrame.
 
-The directory on disk is the store. This module parses headers only and
-does not move mail from ``new/`` to ``cur/``.
+The directory on disk is the store. Required columns are headers.
+Truncated plain ``body`` is a listing extra. Reading does not move mail
+from ``new/`` to ``cur/``.
 """
 
 from __future__ import annotations
@@ -13,7 +14,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from .body import body_images_option, listing_body
 from .reader import COLUMNS
+
+_EXTRA = ["path", "body"]
+_COLUMNS = COLUMNS + _EXTRA
 
 _HEADER_PARSER = BytesHeaderParser()
 
@@ -26,19 +31,20 @@ def read_maildir(details: dict) -> pd.DataFrame:
     * ``path:`` — directory containing ``cur/`` and/or ``new/``
       (``folder:`` is an alias)
 
-    Optional: ``limit`` (newest files by mtime). ``credential:`` is not
-    accepted.
+    Optional: ``limit`` (newest files by mtime), ``body_images``
+    (``omit`` or ``url``). ``credential:`` is not accepted.
     """
     if details.get("credential") is not None:
         raise ValueError('Type "maildir" does not take credential:')
     path = _path(details)
     limit = _limit(details)
+    images = body_images_option(details, type_name="maildir")
     files = _message_files(path)
     files.sort(key=lambda item: item.stat().st_mtime)
     if limit is not None:
         files = files[-limit:]
-    rows = [_row_from_file(item) for item in files]
-    return pd.DataFrame(rows, columns=COLUMNS)
+    rows = [_row_from_file(item, images=images) for item in files]
+    return pd.DataFrame(rows, columns=_COLUMNS)
 
 
 def _path(details: dict) -> Path:
@@ -88,7 +94,7 @@ def _message_files(root: Path) -> list[Path]:
     return files
 
 
-def _row_from_file(path: Path) -> dict[str, str]:
+def _row_from_file(path: Path, *, images: str = "omit") -> dict[str, str]:
     with path.open("rb") as handle:
         message = _HEADER_PARSER.parse(handle)
     return {
@@ -97,6 +103,8 @@ def _row_from_file(path: Path) -> dict[str, str]:
         "subject": _header(message, "Subject"),
         "from": _header(message, "From"),
         "date": _header(message, "Date"),
+        "path": str(path),
+        "body": listing_body(path, images=images),
     }
 
 

@@ -71,7 +71,9 @@ def test_cur_and_new_two_rows_tmp_ignored(tmp_path):
     (root / "tmp" / "333.hostname").write_text("ignored\n")
 
     df = read_maildir({"path": str(root)})
-    assert list(df.columns) == COLUMNS
+    assert list(df.columns)[:5] == COLUMNS
+    assert "body" in df.columns
+    assert "path" in df.columns
     assert set(df["uid"]) == {"111.hostname", "222.hostname"}
     assert set(df["subject"]) == {"Seen", "Unseen"}
     assert new_file.exists()
@@ -82,7 +84,8 @@ def test_cur_and_new_two_rows_tmp_ignored(tmp_path):
 def test_empty_maildir_has_columns(tmp_path):
     root = _maildir(tmp_path / "INBOX")
     df = read_maildir({"path": str(root)})
-    assert list(df.columns) == COLUMNS
+    assert list(df.columns)[:5] == COLUMNS
+    assert "body" in df.columns
     assert df.empty
 
 

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "lynguine-maildir"
 version = "0.1.0"
-description = "Maildir (and live IMAP) message subjects as a lynguine tabular IO type."
+description = "Maildir, mu, and live IMAP message subjects as a lynguine tabular IO type."
 authors = ["Neil D. Lawrence <lawrennd@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -28,6 +28,7 @@ testpaths = ["tests"]
 [tool.poetry.plugins."lynguine.io_types"]
 imap = "lynguine_maildir"
 maildir = "lynguine_maildir"
+mu = "lynguine_maildir"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

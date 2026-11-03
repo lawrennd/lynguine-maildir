@@ -1,8 +1,9 @@
 # lynguine-maildir
 
 Mailbox *subjects* as a lynguine tabular source. The primary store is a
-local **Maildir** (`type: maildir`). Live IMAP (`type: imap`) is the path
-without a replica.
+local **Maildir** (`type: maildir`). Retrieval across that tree is a
+**mu query** (`type: mu`) when the operator has indexed it. Live IMAP
+(`type: imap`) is the path without a replica.
 
 This is inbound access. It is not referia's outbound `type: email` drafts.
 
@@ -30,8 +31,39 @@ Optional keys: `limit` (newest files by mtime). `folder:` is an alias for
 
 Each row is one message: `uid`, `message_id`, `subject`, `from`, `date`.
 For Maildir, `uid` is the unique basename with flags stripped (`:2,…`
-removed). That is not an IMAP UID. Bodies are not returned as columns.
-Reading does not move mail from `new/` to `cur/`. The type is read-only.
+removed). That is not an IMAP UID. Extra `path` and truncated markdown
+`body` are allowed for listing display (Safe Links unwrapped;
+`body_images: omit` or `url`). Reading does not move mail from `new/`
+to `cur/`. The type is read-only.
+
+## mu queries
+
+YAML names a **mu-query** expression, not a folder path and not a
+credential. This package runs `mu find --format=json2`. It does not run
+`mu init` or `mu index`.
+
+```bash
+mu init --maildir=~/Maildir
+mu index
+```
+
+```yaml
+input:
+  type: mu
+  query: "date:today AND not flag:trashed"
+  limit: 50
+  index: message_id
+plugins:
+  - lynguine_maildir
+```
+
+Optional keys: `limit` (newest first, maps to `--maxnum`), `muhome`,
+`binary` (if `mu` is not on `PATH`). Folder restriction belongs in the
+query (`maildir:/cam/INBOX`). Same five columns as Maildir; `uid` is
+still the Maildir basename with flags stripped. Extra `path`,
+`maildir`, and truncated markdown `body` columns are allowed (Safe
+Links unwrapped; `body_images: omit` or `url`). Zero matches is an
+empty frame. The type is read-only.
 
 ## Live IMAP
 
@@ -96,6 +128,6 @@ stays unseen (`BODY.PEEK`, read-only `SELECT`).
 
 ## Status
 
-`type: maildir` and live `type: imap` (LOGIN and XOAUTH2) are in place.
-Tests use a Maildir fixture and mock IMAP/MSAL; they do not open a network
-connection.
+`type: maildir`, `type: mu`, and live `type: imap` (LOGIN and XOAUTH2)
+are in place. Tests use a Maildir fixture, a fake `mu` binary, and mock
+IMAP/MSAL; they do not open a network connection or a live mu index.
