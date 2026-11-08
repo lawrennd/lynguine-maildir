@@ -60,7 +60,7 @@ def test_listing_body_unwraps_plain_safe_links(tmp_path):
     assert unwrap_safe_links(SAFE) == "https://example.com/path"
 
 
-def test_listing_body_prefers_html_markdown(tmp_path):
+def test_listing_body_prefers_plain_over_html(tmp_path):
     path = tmp_path / "msg"
     _write(
         path,
@@ -75,12 +75,61 @@ def test_listing_body_prefers_html_markdown(tmp_path):
         "--b\r\n"
         "Content-Type: text/html; charset=utf-8\r\n"
         "\r\n"
-        "<p>Hello <b>html</b></p>\r\n"
+        "<table><tr><td></td></tr></table><p>Hello <b>html</b></p>\r\n"
         "--b--\r\n",
+    )
+    text = listing_body(path)
+    assert "Hello plain" in text
+    assert "**html**" not in text
+    assert "| --- |" not in text
+
+
+def test_listing_body_html_only_still_markdown(tmp_path):
+    path = tmp_path / "msg"
+    _write(
+        path,
+        "From: a@example.org\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        "\r\n"
+        "<p>Hello <b>html</b></p>\r\n",
     )
     text = listing_body(path)
     assert "**html**" in text
     assert "<b>" not in text
+
+
+def test_listing_body_drops_empty_html_table_chrome(tmp_path):
+    path = tmp_path / "msg"
+    _write(
+        path,
+        "From: a@example.org\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        "\r\n"
+        "<table><tr><td></td><td></td></tr>"
+        "<tr><td></td><td></td></tr></table>"
+        "<p>Real newsletter sentence about a PhD fair.</p>\r\n",
+    )
+    text = listing_body(path)
+    assert "Real newsletter sentence" in text
+    assert "| --- |" not in text
+
+
+def test_listing_body_pipe_heavy_html_falls_back_to_strip(tmp_path):
+    # Mimic layout-table newsletters: many empty cells + one sentence.
+    cells = "".join("<tr>" + "<td></td>" * 8 + "</tr>" for _ in range(12))
+    path = tmp_path / "msg"
+    _write(
+        path,
+        "From: a@example.org\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        "\r\n"
+        f"<html><body><table>{cells}</table>"
+        "<p>Meet universities at the PhD study fair.</p>"
+        "</body></html>\r\n",
+    )
+    text = listing_body(path)
+    assert "PhD study fair" in text
+    assert text.count("|") < 5
 
 
 def test_listing_body_omits_images_by_default(tmp_path):

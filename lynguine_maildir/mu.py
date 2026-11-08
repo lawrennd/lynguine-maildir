@@ -56,6 +56,8 @@ def _limit(details: dict) -> int | None:
     if "limit" not in details or details["limit"] is None:
         return None
     limit = details["limit"]
+    if isinstance(limit, str) and limit.strip().isdigit():
+        limit = int(limit.strip())
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
         raise ValueError('Type "mu" limit: must be a positive integer')
     return limit
