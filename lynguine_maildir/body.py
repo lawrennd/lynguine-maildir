@@ -1,7 +1,8 @@
 """Listing body from a Maildir message file.
 
-Required IO columns stay headers. ``body`` is truncated markdown: Outlook
-Safe Links unwrapped, images omitted unless ``body_images: url``.
+Required IO columns stay headers. ``body`` prefers ``text/plain`` when
+present (readable for units/LLM), else HTML→markdown. Outlook Safe Links
+are unwrapped; images omitted unless ``body_images: url``.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ _SAFE_LINK = re.compile(
     re.IGNORECASE,
 )
 _MD_IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+# Markdown table scaffolding from HTML email layouts (empty cells / rules).
+_TABLE_CHROME_LINE = re.compile(r"^[\s|:\-]+$")
 
 
 def listing_body(
@@ -98,10 +101,17 @@ def _normalise_images(images: str) -> str:
 
 
 def _message_markdown(message) -> str:
+    # Prefer text/plain when present. Multipart HTML newsletters often
+    # markdownify into empty table chrome (| --- |) that is useless for
+    # listing, paragraph units, and LLM extract — while the plain part
+    # is the readable body. Fall back to HTML when there is no plain part.
+    plain = _part_by_type(message, "text/plain")
+    if plain.strip():
+        return plain
     html = _part_by_type(message, "text/html")
     if html.strip():
         return _html_to_markdown(html)
-    return _part_by_type(message, "text/plain")
+    return ""
 
 
 def _iter_parts(message):
@@ -133,11 +143,23 @@ def _part_payload(part) -> str:
 
 
 def _html_to_markdown(raw: str) -> str:
-    raw = _BLOCK.sub(" ", raw)
+    cleaned = _BLOCK.sub(" ", raw)
     try:
-        return html2markdown(raw)
+        md = html2markdown(cleaned)
     except (RecursionError, TypeError, ValueError):
-        return _strip_tags(raw)
+        return _strip_tags(cleaned)
+    # Newsletter/layout HTML often becomes empty markdown tables with the
+    # real sentences glued onto chrome lines. Prefer tag-stripped prose.
+    if _markdown_is_pipe_heavy(md):
+        return _strip_tags(cleaned)
+    return md
+
+
+def _markdown_is_pipe_heavy(text: str) -> bool:
+    if not text or "|" not in text:
+        return False
+    pipes = text.count("|")
+    return pipes > 20 and pipes > len(text) / 30
 
 
 def _strip_tags(raw: str) -> str:
@@ -163,7 +185,20 @@ def _rewrite_images(text: str, *, images: str) -> str:
 def _finish(text: str, *, images: str) -> str:
     text = unwrap_safe_links(text)
     text = _rewrite_images(text, images=images)
+    text = _drop_table_chrome(text)
     return _normalise_text(text)
+
+
+def _drop_table_chrome(text: str) -> str:
+    """Remove markdown table rule/empty-cell lines from HTML→markdown."""
+    if not text or "|" not in text:
+        return text
+    kept: list[str] = []
+    for line in text.split("\n"):
+        if _TABLE_CHROME_LINE.match(line):
+            continue
+        kept.append(line)
+    return "\n".join(kept)
 
 
 def _normalise_text(text: str) -> str:
