@@ -23,13 +23,15 @@ jobs:
       uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install Poetry
-      run: |
-        pip install poetry
     - name: Install dependencies
       run: |
+        python -m pip install --upgrade pip
+        # Plugin registration (io_types / register_io_type) is ahead of PyPI
+        # lynguine 0.1.2. Install current main until the next cut is published.
+        pip install "git+https://github.com/lawrennd/lynguine.git@main"
         # oauth extra: msal for XOAUTH2 path coverage in tests/test_oauth.py
-        poetry install --extras "oauth"
+        pip install -e ".[oauth]"
+        pip install pytest
     - name: Run tests with pytest
       run: |
-        poetry run pytest
+        pytest
