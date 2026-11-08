@@ -1,0 +1,35 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Poetry
+      run: |
+        pip install poetry
+    - name: Install dependencies
+      run: |
+        # oauth extra: msal for XOAUTH2 path coverage in tests/test_oauth.py
+        poetry install --extras "oauth"
+    - name: Run tests with pytest
+      run: |
+        poetry run pytest
